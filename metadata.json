@@ -1,0 +1,7 @@
+{
+  "name": "CardioNeuro-Sentinel",
+  "description": "On-Device Multimodal Clinical Decision Support System for Cardio-Cerebrovascular Risk Stratification and Heart-Brain Axis Monitoring",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
