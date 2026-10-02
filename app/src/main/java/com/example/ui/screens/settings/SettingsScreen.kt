@@ -40,11 +40,10 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -56,6 +55,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.local.ThemePreferences
+import com.example.domain.settings.FederatedPrivacyManager
 import com.example.ui.components.HeroGradientCard
 import com.example.ui.components.StatusPill
 import com.example.ui.theme.MedicalBadgeBg
@@ -90,7 +90,8 @@ fun SettingsScreen(
         themePreferences ?: ThemePreferences.getInstance(context)
     }
 
-    var privacyEpsilon by remember { mutableFloatStateOf(0.50f) }
+    val privacyEpsilon by FederatedPrivacyManager.privacyEpsilon.collectAsState()
+    val federatedNodeValue by FederatedPrivacyManager.federatedNodeValue.collectAsState()
 
     fun updateTheme(enableDark: Boolean) {
         onToggleDarkTheme(enableDark)
@@ -341,7 +342,7 @@ fun SettingsScreen(
 
                     Slider(
                         value = privacyEpsilon,
-                        onValueChange = { privacyEpsilon = it },
+                        onValueChange = { FederatedPrivacyManager.updateEpsilon(it) },
                         valueRange = 0.1f..2.0f,
                         colors = SliderDefaults.colors(
                             thumbColor = MedicalTeal,
@@ -497,7 +498,7 @@ fun SettingsScreen(
                         color = MedicalTextPrimary
                     )
                     Text(
-                        text = "Encrypted model consensus network",
+                        text = "Encrypted model consensus • Active Node DP Budget: $federatedNodeValue",
                         fontSize = 11.sp,
                         color = MedicalTextSecondary
                     )
@@ -560,6 +561,10 @@ fun SettingsScreen(
                         Column {
                             Text("Local Epochs", fontSize = 10.sp, color = MedicalTextSecondary)
                             Text("142", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MedicalBlue)
+                        }
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("Node DP Budget", fontSize = 10.sp, color = MedicalTextSecondary)
+                            Text(federatedNodeValue, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MedicalTeal)
                         }
                         Column(horizontalAlignment = Alignment.End) {
                             Text("Last Weight Hash", fontSize = 10.sp, color = MedicalTextSecondary)
@@ -625,6 +630,10 @@ fun SettingsScreen(
                         Column {
                             Text("Local Epochs", fontSize = 10.sp, color = MedicalTextSecondary)
                             Text("198", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MedicalBlue)
+                        }
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("Node DP Budget", fontSize = 10.sp, color = MedicalTextSecondary)
+                            Text(federatedNodeValue, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = MedicalTeal)
                         }
                         Column(horizontalAlignment = Alignment.End) {
                             Text("Last Weight Hash", fontSize = 10.sp, color = MedicalTextSecondary)

@@ -36,7 +36,10 @@ class DashboardViewModel(
     val recentAssessments: StateFlow<List<Assessment>> = assessmentRepository.allAssessments
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val federatedEpsilon: String = "ε = 0.5"
+    val federatedEpsilonFlow: StateFlow<String> = com.example.domain.settings.FederatedPrivacyManager.federatedNodeValue
+    val federatedEpsilon: String
+        get() = com.example.domain.settings.FederatedPrivacyManager.federatedNodeValue.value
+
     val federatedStatus: String = "Active"
 
     class Factory(

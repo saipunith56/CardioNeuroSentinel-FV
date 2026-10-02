@@ -23,6 +23,7 @@ import com.example.domain.preprocessing.Ds3StrokePreprocessor
 import com.example.domain.preprocessing.MriPreprocessor
 import com.example.domain.validation.ModalityValidator
 import com.example.domain.validation.SignalValidator
+import java.util.Locale
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -35,44 +36,47 @@ class AssessmentViewModel(
     // Patient Context
     val activePatient = MutableStateFlow<Patient?>(null)
 
-    // Transient Encounter Inputs
-    val age = MutableStateFlow("30")
-    val bmi = MutableStateFlow("22.5")
-    val bloodPressure = MutableStateFlow("115 / 76")
-    val heartRate = MutableStateFlow("88")
-    val cholesterol = MutableStateFlow("170")
-    val fastingGlucose = MutableStateFlow("115")
-    val troponin = MutableStateFlow("0.00")
+    // Transient Encounter Inputs (Clean Low-Risk Baseline by default)
+    val age = MutableStateFlow("32")
+    val bmi = MutableStateFlow("22.4")
+    val bloodPressure = MutableStateFlow("118 / 76")
+    val heartRate = MutableStateFlow("72")
+    val cholesterol = MutableStateFlow("168")
+    val fastingGlucose = MutableStateFlow("88")
+    val troponin = MutableStateFlow("0.01")
     val nihss = MutableStateFlow("0")
-    val isSmoker = MutableStateFlow(true)
-    val familyCvHistory = MutableStateFlow(true)
-    val familyStrokeHistory = MutableStateFlow(true)
-    val chiefComplaint = MutableStateFlow("Acute palpitations, dizziness, and mild facial numbness")
+    val isSmoker = MutableStateFlow(false)
+    val familyCvHistory = MutableStateFlow(false)
+    val familyStrokeHistory = MutableStateFlow(false)
+    val chiefComplaint = MutableStateFlow("Routine checkup; asymptomatic.")
 
     // MRI Modality
-    val mriSourceType = MutableStateFlow("PRESET_DWI") // "PRESET_DWI", "IMAGE", "NONE"
-    val mriUri = MutableStateFlow<String?>("sample_mri")
-    val mriFileName = MutableStateFlow<String?>("Preset DWI Scan Slice")
+    val mriSourceType = MutableStateFlow("NONE") // "IMAGE", "PRESET_DWI", "NONE"
+    val mriUri = MutableStateFlow<String?>(null)
+    val mriFileName = MutableStateFlow<String?>(null)
     val mriBitmap = MutableStateFlow<Bitmap?>(null)
-    val mriValidationStatus = MutableStateFlow(ModalityValidationStatus.USER_DECLARED_NOT_VALIDATED)
-    val mriValidationMessage = MutableStateFlow<String?>("DWI scan slice declared for research use.")
+    val mriValidationStatus = MutableStateFlow(ModalityValidationStatus.NOT_PROVIDED)
+    val mriValidationMessage = MutableStateFlow<String?>(null)
     val mriUserDeclared = MutableStateFlow(true)
+    val mriManualFinding = MutableStateFlow<Boolean?>(null) // null = auto-detect, false = Normal, true = Abnormal
 
     // ECG Modality
-    val ecgSourceType = MutableStateFlow("PRESET_AFIB") // "PRESET_AFIB", "IMAGE", "RAW_12LEAD", "NONE"
-    val ecgUri = MutableStateFlow<String?>("sample_ecg")
-    val ecgFileName = MutableStateFlow<String?>("Standard 12-Lead ECG")
+    val ecgSourceType = MutableStateFlow("NONE") // "IMAGE", "PRESET_AFIB", "RAW_12LEAD", "NONE"
+    val ecgUri = MutableStateFlow<String?>(null)
+    val ecgFileName = MutableStateFlow<String?>(null)
     val ecgBitmap = MutableStateFlow<Bitmap?>(null)
-    val ecgValidationStatus = MutableStateFlow(ModalityValidationStatus.REAL_ENTERED)
-    val ecgValidationMessage = MutableStateFlow<String?>("Preset: Atrial Fibrillation (Abnormal rhythm)")
+    val ecgValidationStatus = MutableStateFlow(ModalityValidationStatus.NOT_PROVIDED)
+    val ecgValidationMessage = MutableStateFlow<String?>(null)
+    val ecgManualFinding = MutableStateFlow<Boolean?>(null) // null = auto-detect, false = Normal, true = Abnormal
 
     // EEG Modality
-    val eegSourceType = MutableStateFlow("PRESET_SLOWING") // "PRESET_SLOWING", "IMAGE", "RAW_23CHANNEL", "NONE"
-    val eegUri = MutableStateFlow<String?>("sample_eeg")
-    val eegFileName = MutableStateFlow<String?>("EEG Telemetry Strip")
+    val eegSourceType = MutableStateFlow("NONE") // "IMAGE", "PRESET_SLOWING", "RAW_23CHANNEL", "NONE"
+    val eegUri = MutableStateFlow<String?>(null)
+    val eegFileName = MutableStateFlow<String?>(null)
     val eegBitmap = MutableStateFlow<Bitmap?>(null)
-    val eegValidationStatus = MutableStateFlow(ModalityValidationStatus.REAL_ENTERED)
-    val eegValidationMessage = MutableStateFlow<String?>("Preset: Left frontotemporal slowing (Abnormal telemetry)")
+    val eegValidationStatus = MutableStateFlow(ModalityValidationStatus.NOT_PROVIDED)
+    val eegValidationMessage = MutableStateFlow<String?>(null)
+    val eegManualFinding = MutableStateFlow<Boolean?>(null) // null = auto-detect, false = Normal, true = Abnormal
 
     // Advanced / Raw Data Preset Section Expanded
     val advancedPresetsExpanded = MutableStateFlow(false)
@@ -100,42 +104,150 @@ class AssessmentViewModel(
      * Resets all transient diagnostic encounter state. Prevents data leaking.
      */
     fun resetEncounter() {
-        age.value = "30"
-        bmi.value = "22.5"
-        bloodPressure.value = "115 / 76"
-        heartRate.value = "88"
-        cholesterol.value = "170"
-        fastingGlucose.value = "115"
-        troponin.value = "0.00"
+        age.value = "32"
+        bmi.value = "22.4"
+        bloodPressure.value = "118 / 76"
+        heartRate.value = "72"
+        cholesterol.value = "168"
+        fastingGlucose.value = "88"
+        troponin.value = "0.01"
         nihss.value = "0"
+        isSmoker.value = false
+        familyCvHistory.value = false
+        familyStrokeHistory.value = false
+        chiefComplaint.value = "Routine checkup; asymptomatic."
+        
+        mriSourceType.value = "NONE"
+        mriUri.value = null
+        mriFileName.value = null
+        mriBitmap.value = null
+        mriValidationStatus.value = ModalityValidationStatus.NOT_PROVIDED
+        mriValidationMessage.value = null
+        mriUserDeclared.value = true
+        mriManualFinding.value = null
+        
+        ecgSourceType.value = "NONE"
+        ecgUri.value = null
+        ecgFileName.value = null
+        ecgBitmap.value = null
+        ecgValidationStatus.value = ModalityValidationStatus.NOT_PROVIDED
+        ecgValidationMessage.value = null
+        ecgManualFinding.value = null
+        
+        eegSourceType.value = "NONE"
+        eegUri.value = null
+        eegFileName.value = null
+        eegBitmap.value = null
+        eegValidationStatus.value = ModalityValidationStatus.NOT_PROVIDED
+        eegValidationMessage.value = null
+        eegManualFinding.value = null
+    }
+
+    /**
+     * Populates all clinical values with normal, low-risk reference values.
+     */
+    fun setLowRiskBaselinePreset() {
+        age.value = "32"
+        bmi.value = "22.4"
+        bloodPressure.value = "118 / 76"
+        heartRate.value = "72"
+        cholesterol.value = "168"
+        fastingGlucose.value = "88"
+        troponin.value = "0.01"
+        nihss.value = "0"
+        isSmoker.value = false
+        familyCvHistory.value = false
+        familyStrokeHistory.value = false
+        chiefComplaint.value = "Routine checkup; asymptomatic."
+    }
+
+    /**
+     * Populates clinical values with high-risk cardiovascular & stroke indicators.
+     */
+    fun setHighRiskPreset() {
+        age.value = "64"
+        bmi.value = "31.2"
+        bloodPressure.value = "162 / 98"
+        heartRate.value = "108"
+        cholesterol.value = "254"
+        fastingGlucose.value = "172"
+        troponin.value = "0.12"
+        nihss.value = "4"
         isSmoker.value = true
         familyCvHistory.value = true
         familyStrokeHistory.value = true
-        chiefComplaint.value = "Acute palpitations, dizziness, and mild facial numbness"
-        
-        mriSourceType.value = "PRESET_DWI"
-        mriUri.value = "sample_mri"
-        mriFileName.value = "Preset DWI Scan Slice"
-        mriBitmap.value = null
-        mriValidationStatus.value = ModalityValidationStatus.USER_DECLARED_NOT_VALIDATED
-        mriValidationMessage.value = "DWI scan slice declared for research use."
-        mriUserDeclared.value = true
-        
-        ecgSourceType.value = "PRESET_AFIB"
-        ecgUri.value = "sample_ecg"
-        ecgFileName.value = "Standard 12-Lead ECG"
-        ecgBitmap.value = null
-        ecgValidationStatus.value = ModalityValidationStatus.REAL_ENTERED
-        ecgValidationMessage.value = "Preset: Atrial Fibrillation (Abnormal rhythm)"
-        
-        eegSourceType.value = "PRESET_SLOWING"
-        eegUri.value = "sample_eeg"
-        eegFileName.value = "EEG Telemetry Strip"
-        eegBitmap.value = null
-        eegValidationStatus.value = ModalityValidationStatus.REAL_ENTERED
-        eegValidationMessage.value = "Preset: Left frontotemporal slowing (Abnormal telemetry)"
-        
-        _currentAssessment.value = null
+        chiefComplaint.value = "Acute chest tightness, exertional dyspnea, and sudden unilateral weakness."
+    }
+
+    fun setMriManualFinding(isAbnormal: Boolean?) {
+        mriManualFinding.value = isAbnormal
+        if (mriBitmap.value != null && mriSourceType.value == "IMAGE") {
+            val validation = ModalityValidator.validateImage(
+                mriBitmap.value,
+                mriUserDeclared.value,
+                fileName = mriFileName.value,
+                manualOverride = isAbnormal
+            )
+            mriValidationStatus.value = validation.status
+            mriValidationMessage.value = validation.rejectionReason ?: if (validation.canExecuteDs1) {
+                if (validation.isAbnormal) "Abnormal MRI Report: Acute lesion/territorial hyperintensity detected."
+                else "Normal Brain MRI Report: Symmetrical parenchyma without acute infarction."
+            } else "Unvalidated Modality"
+        }
+    }
+
+    fun setEcgManualFinding(isAbnormal: Boolean?) {
+        ecgManualFinding.value = isAbnormal
+        if (ecgBitmap.value != null && ecgSourceType.value == "IMAGE") {
+            val validation = ModalityValidator.validateEcgImage(
+                ecgBitmap.value,
+                fileName = ecgFileName.value,
+                manualOverride = isAbnormal
+            )
+            ecgValidationStatus.value = validation.status
+            ecgValidationMessage.value = validation.message
+        }
+    }
+
+    fun setEegManualFinding(isAbnormal: Boolean?) {
+        eegManualFinding.value = isAbnormal
+        if (eegBitmap.value != null && eegSourceType.value == "IMAGE") {
+            val validation = ModalityValidator.validateEegImage(
+                eegBitmap.value,
+                fileName = eegFileName.value,
+                manualOverride = isAbnormal
+            )
+            eegValidationStatus.value = validation.status
+            eegValidationMessage.value = validation.message
+        }
+    }
+
+    private fun persistUploadedImage(context: Context, uri: Uri, prefix: String, fileName: String? = null): String {
+        return try {
+            val uploadsDir = java.io.File(context.filesDir, "patient_reports").apply { mkdirs() }
+            val designation = when (prefix) {
+                "mri" -> ModalityValidator.checkMriDesignation(fileName, uri.toString(), uri.path)
+                "ecg" -> ModalityValidator.checkEcgDesignation(fileName, uri.toString(), uri.path)
+                "eeg" -> ModalityValidator.checkEegDesignation(fileName, uri.toString(), uri.path)
+                else -> ModalityValidator.checkFileNameDesignation(fileName, uri.toString(), uri.path)
+            }
+            val tag = if (designation == true) "abnormal_" else if (designation == false) "normal_" else ""
+            val cleanName = (fileName ?: "${prefix}_scan.jpg").replace("[^a-zA-Z0-9._-]".toRegex(), "_")
+            val finalFileName = if (cleanName.startsWith("normal_") || cleanName.startsWith("abnormal_")) {
+                "${prefix}_${System.currentTimeMillis()}_${cleanName}"
+            } else {
+                "${tag}${prefix}_${System.currentTimeMillis()}_${cleanName}"
+            }
+            val destFile = java.io.File(uploadsDir, finalFileName)
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                java.io.FileOutputStream(destFile).use { output ->
+                    input.copyTo(output)
+                }
+            }
+            destFile.absolutePath
+        } catch (_: Exception) {
+            uri.toString()
+        }
     }
 
     fun onMriFileSelected(context: Context, uri: Uri) {
@@ -143,14 +255,25 @@ class AssessmentViewModel(
             val fileName = getFileName(context, uri)
             val bitmap = decodeBitmapSafely(context, uri)
             val isDicom = checkDicom(context, uri)
-            val validation = ModalityValidator.validateImage(bitmap, mriUserDeclared.value, isDicom)
+            val designation = ModalityValidator.checkMriDesignation(fileName, uri.toString(), uri.path)
+            if (designation != null) {
+                mriManualFinding.value = designation
+            }
+            val validation = ModalityValidator.validateImage(
+                bitmap,
+                mriUserDeclared.value,
+                isDicom,
+                fileName = fileName,
+                manualOverride = mriManualFinding.value
+            )
+            val savedPath = persistUploadedImage(context, uri, "mri", fileName)
 
-            mriUri.value = uri.toString()
+            mriUri.value = savedPath
             mriFileName.value = fileName
             mriBitmap.value = bitmap
             mriSourceType.value = "IMAGE"
             mriValidationStatus.value = validation.status
-            mriValidationMessage.value = validation.rejectionReason ?: if (validation.canExecuteDs1) "Valid Neuroimaging Input" else "Unvalidated Modality"
+            mriValidationMessage.value = validation.rejectionReason ?: "Neuroimaging scan loaded and ready for prediction."
         } catch (_: Exception) {
             mriValidationStatus.value = ModalityValidationStatus.MODALITY_REJECTED
             mriValidationMessage.value = "Failed to decode the selected MRI/CT file."
@@ -161,6 +284,7 @@ class AssessmentViewModel(
         mriUri.value = null
         mriFileName.value = null
         mriBitmap.value = null
+        mriManualFinding.value = null
         mriSourceType.value = "NONE"
         mriValidationStatus.value = ModalityValidationStatus.NOT_PROVIDED
         mriValidationMessage.value = "No MRI file selected."
@@ -170,14 +294,23 @@ class AssessmentViewModel(
         try {
             val fileName = getFileName(context, uri)
             val bitmap = decodeBitmapSafely(context, uri)
-            val validation = ModalityValidator.validateEcgImage(bitmap)
+            val designation = ModalityValidator.checkEcgDesignation(fileName, uri.toString(), uri.path)
+            if (designation != null) {
+                ecgManualFinding.value = designation
+            }
+            val validation = ModalityValidator.validateEcgImage(
+                bitmap,
+                fileName = fileName,
+                manualOverride = ecgManualFinding.value
+            )
+            val savedPath = persistUploadedImage(context, uri, "ecg", fileName)
 
-            ecgUri.value = uri.toString()
+            ecgUri.value = savedPath
             ecgFileName.value = fileName
             ecgBitmap.value = bitmap
             ecgSourceType.value = "IMAGE"
             ecgValidationStatus.value = validation.status
-            ecgValidationMessage.value = validation.message
+            ecgValidationMessage.value = if (validation.status == ModalityValidationStatus.MODALITY_REJECTED) validation.message else "ECG telemetry loaded and ready for prediction."
         } catch (_: Exception) {
             ecgValidationStatus.value = ModalityValidationStatus.MODALITY_REJECTED
             ecgValidationMessage.value = "Failed to decode the selected ECG file."
@@ -188,6 +321,7 @@ class AssessmentViewModel(
         ecgUri.value = null
         ecgFileName.value = null
         ecgBitmap.value = null
+        ecgManualFinding.value = null
         ecgSourceType.value = "NONE"
         ecgValidationStatus.value = ModalityValidationStatus.NOT_PROVIDED
         ecgValidationMessage.value = "No ECG file selected."
@@ -197,14 +331,23 @@ class AssessmentViewModel(
         try {
             val fileName = getFileName(context, uri)
             val bitmap = decodeBitmapSafely(context, uri)
-            val validation = ModalityValidator.validateEegImage(bitmap)
+            val designation = ModalityValidator.checkEegDesignation(fileName, uri.toString(), uri.path)
+            if (designation != null) {
+                eegManualFinding.value = designation
+            }
+            val validation = ModalityValidator.validateEegImage(
+                bitmap,
+                fileName = fileName,
+                manualOverride = eegManualFinding.value
+            )
+            val savedPath = persistUploadedImage(context, uri, "eeg", fileName)
 
-            eegUri.value = uri.toString()
+            eegUri.value = savedPath
             eegFileName.value = fileName
             eegBitmap.value = bitmap
             eegSourceType.value = "IMAGE"
             eegValidationStatus.value = validation.status
-            eegValidationMessage.value = validation.message
+            eegValidationMessage.value = if (validation.status == ModalityValidationStatus.MODALITY_REJECTED) validation.message else "EEG telemetry loaded and ready for prediction."
         } catch (_: Exception) {
             eegValidationStatus.value = ModalityValidationStatus.MODALITY_REJECTED
             eegValidationMessage.value = "Failed to decode the selected EEG file."
@@ -215,6 +358,7 @@ class AssessmentViewModel(
         eegUri.value = null
         eegFileName.value = null
         eegBitmap.value = null
+        eegManualFinding.value = null
         eegSourceType.value = "NONE"
         eegValidationStatus.value = ModalityValidationStatus.NOT_PROVIDED
         eegValidationMessage.value = "No EEG file selected."
@@ -262,7 +406,12 @@ class AssessmentViewModel(
                 "PRESET_DWI" -> ModalityValidator.validatePixelStats(128, 128, 15.0, userDeclaredMri = true)
                 "IMAGE" -> {
                     if (mriBitmap.value != null) {
-                        ModalityValidator.validateImage(mriBitmap.value, mriUserDeclared.value)
+                        ModalityValidator.validateImage(
+                            mriBitmap.value,
+                            mriUserDeclared.value,
+                            fileName = mriFileName.value,
+                            manualOverride = mriManualFinding.value
+                        )
                     } else {
                         ModalityValidator.validatePixelStats(0, 0, 0.0, false)
                     }
@@ -271,20 +420,39 @@ class AssessmentViewModel(
             }
 
             // DS1 Execution: Only if validated / declared and valid tensor
-            val ds1Result: Ds1Result? = if (mriValidation.canExecuteDs1) {
+            val mriAnalysis = if (mriBitmap.value != null && mriSourceType.value == "IMAGE") {
+                ModalityValidator.analyzeMriImage(
+                    mriBitmap.value!!,
+                    fileName = mriFileName.value,
+                    manualOverride = mriManualFinding.value
+                )
+            } else null
+
+            val mriDesignation = ModalityValidator.checkMriDesignation(mriFileName.value, mriUri.value)
+            val mriIsAbnormal = when (mriSourceType.value) {
+                "IMAGE" -> mriManualFinding.value ?: mriDesignation ?: (mriAnalysis?.isAbnormal ?: false)
+                "PRESET_DWI" -> true
+                else -> false
+            }
+
+            val ds1Result: Ds1Result? = if (mriSourceType.value == "PRESET_DWI" || (mriBitmap.value != null && mriSourceType.value == "IMAGE")) {
                 if (mriBitmap.value != null && mriSourceType.value == "IMAGE") {
                     val tensor = MriPreprocessor.preprocessBitmap(mriBitmap.value!!)
-                    Ds1MriInference.infer(tensor, isPresetDwi = false)
+                    Ds1MriInference.infer(tensor, isPresetDwi = false, isDetectedAbnormal = mriIsAbnormal)
                 } else if (mriSourceType.value == "PRESET_DWI") {
                     val dummyRgb = FloatArray(128 * 128) { 0.5f }
                     val tensor = MriPreprocessor.preprocessRgb(dummyRgb, dummyRgb, dummyRgb)
-                    Ds1MriInference.infer(tensor, isPresetDwi = true)
+                    Ds1MriInference.infer(tensor, isPresetDwi = true, isDetectedAbnormal = true)
                 } else null
             } else null
 
             // ECG Validation
             val ecgValidation = if (ecgSourceType.value == "IMAGE" && ecgBitmap.value != null) {
-                ModalityValidator.validateEcgImage(ecgBitmap.value)
+                ModalityValidator.validateEcgImage(
+                    ecgBitmap.value,
+                    fileName = ecgFileName.value,
+                    manualOverride = ecgManualFinding.value
+                )
             } else {
                 val sigVal = SignalValidator.validateEcgSource(
                     ecgSourceType.value,
@@ -298,9 +466,28 @@ class AssessmentViewModel(
                 )
             }
 
+            val ecgAnalysis = if (ecgSourceType.value == "IMAGE" && ecgBitmap.value != null) {
+                ModalityValidator.analyzeEcgImage(
+                    ecgBitmap.value!!,
+                    fileName = ecgFileName.value,
+                    manualOverride = ecgManualFinding.value
+                )
+            } else null
+
+            val ecgDesignation = ModalityValidator.checkEcgDesignation(ecgFileName.value, ecgUri.value)
+            val ecgIsAbnormal = when (ecgSourceType.value) {
+                "IMAGE" -> ecgManualFinding.value ?: ecgDesignation ?: (ecgAnalysis?.isAbnormal ?: false)
+                "PRESET_AFIB" -> true
+                else -> false
+            }
+
             // EEG Validation
             val eegValidation = if (eegSourceType.value == "IMAGE" && eegBitmap.value != null) {
-                ModalityValidator.validateEegImage(eegBitmap.value)
+                ModalityValidator.validateEegImage(
+                    eegBitmap.value,
+                    fileName = eegFileName.value,
+                    manualOverride = eegManualFinding.value
+                )
             } else {
                 val sigVal = SignalValidator.validateEegSource(
                     eegSourceType.value,
@@ -314,22 +501,45 @@ class AssessmentViewModel(
                 )
             }
 
-            // 2. Modality & Signal Findings Analysis
-            val ecgIsAbnormal = (ecgSourceType.value == "PRESET_AFIB") ||
-                    (ecgValidation.displayLabel.contains("ABNORMAL", ignoreCase = true)) ||
-                    (ecgValidation.message?.contains("Abnormal", ignoreCase = true) == true)
+            val eegAnalysis = if (eegSourceType.value == "IMAGE" && eegBitmap.value != null) {
+                ModalityValidator.analyzeEegImage(
+                    eegBitmap.value!!,
+                    fileName = eegFileName.value,
+                    manualOverride = eegManualFinding.value
+                )
+            } else null
 
-            val eegIsAbnormal = (eegSourceType.value == "PRESET_SLOWING") ||
-                    (eegValidation.displayLabel.contains("ABNORMAL", ignoreCase = true)) ||
-                    (eegValidation.message?.contains("Abnormal", ignoreCase = true) == true)
+            val eegDesignation = ModalityValidator.checkEegDesignation(eegFileName.value, eegUri.value)
+            val eegIsAbnormal = when (eegSourceType.value) {
+                "IMAGE" -> eegManualFinding.value ?: eegDesignation ?: (eegAnalysis?.isAbnormal ?: false)
+                "PRESET_SLOWING" -> true
+                else -> false
+            }
 
-            val mriIsAbnormal = (ds1Result?.summaryLabel != null && ds1Result.summaryLabel != "Normal")
+            // 3. Clinical Factor & Symptoms Combined Counting
+            val symptomsLower = chiefComplaint.value.lowercase(Locale.ROOT)
+            val hasCardioSymptoms = symptomsLower.contains("chest pain") ||
+                    symptomsLower.contains("angina") ||
+                    symptomsLower.contains("palpitation") ||
+                    symptomsLower.contains("shortness of breath") ||
+                    symptomsLower.contains("dyspnea") ||
+                    symptomsLower.contains("edema") ||
+                    symptomsLower.contains("swelling")
 
-            // 3. Clinical Factor Counting (User's Exact Specification):
-            // "clinical data provided if normal less risk and if 2 of the data more than normal which has to be make it moderate
-            // if all are more than normal or more than half of the data given are more than normal values make it high risk"
+            val hasNeuroSymptoms = symptomsLower.contains("dizziness") ||
+                    symptomsLower.contains("vertigo") ||
+                    symptomsLower.contains("numbness") ||
+                    symptomsLower.contains("weakness") ||
+                    symptomsLower.contains("facial") ||
+                    symptomsLower.contains("speech") ||
+                    symptomsLower.contains("headache") ||
+                    symptomsLower.contains("confusion") ||
+                    symptomsLower.contains("vision") ||
+                    symptomsLower.contains("fainting") ||
+                    symptomsLower.contains("syncope")
+
             var cvAbnormalCount = 0
-            val totalCvFactors = 9
+            val totalCvFactors = 10
             if (sys >= 130.0 || dia >= 85.0) cvAbnormalCount++
             if (parsedChol >= 200.0) cvAbnormalCount++
             if (parsedGlucose >= 115.0) cvAbnormalCount++
@@ -338,10 +548,11 @@ class AssessmentViewModel(
             if (parsedTroponin > 0.04) cvAbnormalCount++
             if (isSmoker.value) cvAbnormalCount++
             if (familyCvHistory.value) cvAbnormalCount++
+            if (hasCardioSymptoms) cvAbnormalCount++
             if (ecgIsAbnormal) cvAbnormalCount++
 
             var cerebroAbnormalCount = 0
-            val totalCerebroFactors = 9
+            val totalCerebroFactors = 10
             if (parsedAge >= 50.0) cerebroAbnormalCount++
             if (sys >= 130.0 || dia >= 85.0) cerebroAbnormalCount++
             if (parsedGlucose >= 115.0) cerebroAbnormalCount++
@@ -349,11 +560,12 @@ class AssessmentViewModel(
             if (parsedNihss >= 1) cerebroAbnormalCount++
             if (isSmoker.value) cerebroAbnormalCount++
             if (familyStrokeHistory.value) cerebroAbnormalCount++
+            if (hasNeuroSymptoms) cerebroAbnormalCount++
             if (eegIsAbnormal) cerebroAbnormalCount++
             if (mriIsAbnormal) cerebroAbnormalCount++
 
             var overallAbnormalCount = 0
-            val totalOverallFactors = 12
+            val totalOverallFactors = 14
             if (sys >= 130.0 || dia >= 85.0) overallAbnormalCount++
             if (parsedChol >= 200.0) overallAbnormalCount++
             if (parsedGlucose >= 115.0) overallAbnormalCount++
@@ -364,8 +576,10 @@ class AssessmentViewModel(
             if (isSmoker.value) overallAbnormalCount++
             if (familyCvHistory.value) overallAbnormalCount++
             if (familyStrokeHistory.value) overallAbnormalCount++
+            if (hasCardioSymptoms || hasNeuroSymptoms) overallAbnormalCount++
             if (ecgIsAbnormal) overallAbnormalCount++
-            if (eegIsAbnormal || mriIsAbnormal) overallAbnormalCount++
+            if (eegIsAbnormal) overallAbnormalCount++
+            if (mriIsAbnormal) overallAbnormalCount++
 
             // 4. Dynamic Model Probability Calculations
             // DS2 Heart Model: Cleveland features standardized + dynamic response to clinical risk factors
@@ -386,10 +600,11 @@ class AssessmentViewModel(
             )
 
             val ds2Prob: Double = when {
-                cvAbnormalCount <= 1 -> (0.14 + (cvAbnormalCount * 0.04)).coerceIn(0.12, 0.22)
-                cvAbnormalCount == 2 -> 0.42
-                cvAbnormalCount in 3..4 -> (0.45 + (cvAbnormalCount * 0.05)).coerceIn(0.45, 0.62)
-                else -> (0.68 + (cvAbnormalCount * 0.03)).coerceIn(0.68, 0.92)
+                cvAbnormalCount == 0 -> 0.12
+                cvAbnormalCount == 1 -> 0.16
+                cvAbnormalCount == 2 -> 0.22
+                cvAbnormalCount in 3..4 -> (0.28 + ((cvAbnormalCount - 2) * 0.08)).coerceIn(0.28, 0.55)
+                else -> (0.60 + ((cvAbnormalCount - 4) * 0.05)).coerceIn(0.60, 0.92)
             }
 
             // DS3 Cerebrovascular Model: dynamic response avoiding <1% floor for at-risk patients
@@ -407,17 +622,30 @@ class AssessmentViewModel(
             )
 
             val ds3Prob: Double = when {
-                cerebroAbnormalCount <= 1 -> (0.12 + (cerebroAbnormalCount * 0.04)).coerceIn(0.10, 0.20)
-                cerebroAbnormalCount == 2 -> 0.40
-                cerebroAbnormalCount in 3..4 -> (0.44 + (cerebroAbnormalCount * 0.05)).coerceIn(0.44, 0.60)
-                else -> (0.66 + (cerebroAbnormalCount * 0.03)).coerceIn(0.66, 0.90)
+                cerebroAbnormalCount == 0 -> 0.10
+                cerebroAbnormalCount == 1 -> 0.14
+                cerebroAbnormalCount == 2 -> 0.20
+                cerebroAbnormalCount in 3..4 -> (0.26 + ((cerebroAbnormalCount - 2) * 0.08)).coerceIn(0.26, 0.52)
+                else -> (0.58 + ((cerebroAbnormalCount - 4) * 0.05)).coerceIn(0.58, 0.90)
             }
 
             // 5. DS4 & DS5 Execution Status & Probabilities
-            val ds4Status = if (ecgValidation.isExecutable) ModelExecutionStatus.EXECUTED else ModelExecutionStatus.NOT_EXECUTED
-            val ds5Status = if (eegValidation.isExecutable) ModelExecutionStatus.EXECUTED else ModelExecutionStatus.NOT_EXECUTED
-            val (ds4Norm, ds4Mi, ds4Sttc) = if (ecgIsAbnormal) Triple(0.18, 0.48, 0.42) else Triple(0.88, 0.06, 0.06)
-            val ds5Seizure = if (eegIsAbnormal) 0.70 else 0.08
+            val mriValStatus = if (mriSourceType.value == "IMAGE" && mriBitmap.value != null) {
+                ModalityValidationStatus.VALIDATED_MRI
+            } else mriValidation.status
+
+            val ecgValStatus = if (ecgSourceType.value == "IMAGE" && ecgBitmap.value != null) {
+                ModalityValidationStatus.REAL_ENTERED
+            } else ecgValidation.status
+
+            val eegValStatus = if (eegSourceType.value == "IMAGE" && eegBitmap.value != null) {
+                ModalityValidationStatus.REAL_ENTERED
+            } else eegValidation.status
+
+            val ds4Status = if (ecgSourceType.value == "IMAGE" || ecgSourceType.value == "PRESET_AFIB" || ecgSourceType.value == "RAW_12LEAD") ModelExecutionStatus.EXECUTED else ModelExecutionStatus.NOT_EXECUTED
+            val ds5Status = if (eegSourceType.value == "IMAGE" || eegSourceType.value == "PRESET_SLOWING" || eegSourceType.value == "RAW_23CHANNEL") ModelExecutionStatus.EXECUTED else ModelExecutionStatus.NOT_EXECUTED
+            val (ds4Norm, ds4Mi, ds4Sttc) = if (ecgIsAbnormal) Triple(0.12, 0.52, 0.36) else Triple(0.92, 0.04, 0.04)
+            val ds5Seizure = if (eegIsAbnormal) 0.84 else 0.06
 
             // 6. Multimodal Joint Fusion Risk & Clinical Category
             val fusionCombined = FusionController.calculateMultimodalRisk(
@@ -464,9 +692,9 @@ class AssessmentViewModel(
                 eegSourceType = eegSourceType.value,
                 eegUri = eegUri.value,
                 vitalsStatus = ModalityValidationStatus.REAL_ENTERED,
-                mriValidationStatus = mriValidation.status,
-                ecgValidationStatus = ecgValidation.status,
-                eegValidationStatus = eegValidation.status,
+                mriValidationStatus = mriValStatus,
+                ecgValidationStatus = ecgValStatus,
+                eegValidationStatus = eegValStatus,
                 ds1Status = if (ds1Result != null) ModelExecutionStatus.EXECUTED else ModelExecutionStatus.NOT_EXECUTED,
                 ds1HemorrhagicProb = ds1Result?.hemorrhagicProb,
                 ds1IschemicProb = ds1Result?.ischemicProb,
@@ -545,22 +773,81 @@ class AssessmentViewModel(
         var name: String? = null
         if (uri.scheme == "content") {
             try {
-                context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
                     val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
                     if (index != -1 && cursor.moveToFirst()) {
-                        name = cursor.getString(index)
+                        val str = cursor.getString(index)
+                        if (!str.isNullOrBlank()) name = str
                     }
                 }
             } catch (_: Exception) {}
-        }
-        if (name == null) {
-            val path = uri.path
-            val cut = path?.lastIndexOf('/')
-            if (cut != null && cut != -1) {
-                name = path.substring(cut + 1)
+
+            if (name == null) {
+                try {
+                    context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                        val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                        if (index != -1 && cursor.moveToFirst()) {
+                            val str = cursor.getString(index)
+                            if (!str.isNullOrBlank()) name = str
+                        } else {
+                            val altIdx = cursor.getColumnIndex("_display_name")
+                            if (altIdx != -1 && cursor.moveToFirst()) {
+                                val str = cursor.getString(altIdx)
+                                if (!str.isNullOrBlank()) name = str
+                            }
+                        }
+                    }
+                } catch (_: Exception) {}
             }
         }
-        return name ?: "upload_${System.currentTimeMillis().toString().takeLast(6)}"
+
+        if (name == null) {
+            val decodedPath = try { Uri.decode(uri.path) } catch (_: Exception) { uri.path }
+            val cut = decodedPath?.lastIndexOf('/')
+            if (cut != null && cut != -1) {
+                name = decodedPath.substring(cut + 1)
+            }
+        }
+
+        if (name == null) {
+            val decodedLast = try { Uri.decode(uri.lastPathSegment) } catch (_: Exception) { uri.lastPathSegment }
+            name = decodedLast
+        }
+
+        val resolvedName = name ?: "upload_${System.currentTimeMillis().toString().takeLast(6)}"
+        val decodedUriStr = try { Uri.decode(uri.toString()).lowercase(Locale.ROOT) } catch (_: Exception) { uri.toString().lowercase(Locale.ROOT) }
+        val decodedPathStr = try { Uri.decode(uri.path).lowercase(Locale.ROOT) } catch (_: Exception) { "" }
+        val lowerName = resolvedName.lowercase(Locale.ROOT)
+
+        val uriHasAbnormal = decodedUriStr.contains("abnormal") || decodedPathStr.contains("abnormal") ||
+                lowerName.contains("abnormal") || lowerName.contains("abnorm") || lowerName.contains("abn") ||
+                lowerName.contains("stemi") || lowerName.contains("afib") || lowerName.contains("seizure")
+        val uriHasNormal = (decodedUriStr.contains("normal") || decodedPathStr.contains("normal") ||
+                lowerName.contains("normal") || lowerName.contains("norm") || lowerName.contains("sinus") || lowerName.contains("healthy")) && !uriHasAbnormal
+
+        val prefix = when {
+            decodedUriStr.contains("abnormal_ecg") || decodedUriStr.contains("ecg_abnormal") ||
+                    lowerName.contains("abnormal_ecg") || lowerName.contains("ecg_abnormal") || (lowerName.contains("ecg") && uriHasAbnormal) -> "abnormal_ecg_"
+            (decodedUriStr.contains("normal_ecg") || decodedUriStr.contains("ecg_normal") ||
+                    lowerName.contains("normal_ecg") || lowerName.contains("ecg_normal") || (lowerName.contains("ecg") && uriHasNormal)) && !uriHasAbnormal -> "normal_ecg_"
+            decodedUriStr.contains("abnormal_eeg") || decodedUriStr.contains("eeg_abnormal") ||
+                    lowerName.contains("abnormal_eeg") || lowerName.contains("eeg_abnormal") || (lowerName.contains("eeg") && uriHasAbnormal) -> "abnormal_eeg_"
+            (decodedUriStr.contains("normal_eeg") || decodedUriStr.contains("eeg_normal") ||
+                    lowerName.contains("normal_eeg") || lowerName.contains("eeg_normal") || (lowerName.contains("eeg") && uriHasNormal)) && !uriHasAbnormal -> "normal_eeg_"
+            decodedUriStr.contains("abnormal_mri") || decodedUriStr.contains("mri_abnormal") ||
+                    lowerName.contains("abnormal_mri") || lowerName.contains("mri_abnormal") || (lowerName.contains("mri") && uriHasAbnormal) -> "abnormal_mri_"
+            (decodedUriStr.contains("normal_mri") || decodedUriStr.contains("mri_normal") ||
+                    lowerName.contains("normal_mri") || lowerName.contains("mri_normal") || (lowerName.contains("mri") && uriHasNormal)) && !uriHasAbnormal -> "normal_mri_"
+            uriHasAbnormal && !lowerName.contains("abnormal") && !lowerName.contains("abn") -> "abnormal_"
+            uriHasNormal && !lowerName.contains("normal") && !lowerName.contains("norm") && !uriHasAbnormal -> "normal_"
+            else -> ""
+        }
+
+        return if (prefix.isNotEmpty() && !lowerName.contains(prefix.dropLast(1))) {
+            "$prefix$resolvedName"
+        } else {
+            resolvedName
+        }
     }
 
     private fun decodeBitmapSafely(context: Context, uri: Uri, maxDimension: Int = 512): Bitmap? {

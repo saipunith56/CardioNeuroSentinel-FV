@@ -44,6 +44,8 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -69,6 +71,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.ModalityValidationStatus
+import com.example.domain.validation.ModalityValidator
 import com.example.ui.components.StatusPill
 import com.example.ui.theme.MedicalBadgeBg
 import com.example.ui.theme.MedicalBlue
@@ -125,6 +128,7 @@ fun NewDiagnosticAssessmentScreen(
     val mriValidationStatus by viewModel.mriValidationStatus.collectAsState()
     val mriValidationMessage by viewModel.mriValidationMessage.collectAsState()
     val mriDeclared by viewModel.mriUserDeclared.collectAsState()
+    val mriManualFinding by viewModel.mriManualFinding.collectAsState()
 
     // ECG Modality State
     val ecgSourceType by viewModel.ecgSourceType.collectAsState()
@@ -132,6 +136,7 @@ fun NewDiagnosticAssessmentScreen(
     val ecgBitmap by viewModel.ecgBitmap.collectAsState()
     val ecgValidationStatus by viewModel.ecgValidationStatus.collectAsState()
     val ecgValidationMessage by viewModel.ecgValidationMessage.collectAsState()
+    val ecgManualFinding by viewModel.ecgManualFinding.collectAsState()
 
     // EEG Modality State
     val eegSourceType by viewModel.eegSourceType.collectAsState()
@@ -139,6 +144,7 @@ fun NewDiagnosticAssessmentScreen(
     val eegBitmap by viewModel.eegBitmap.collectAsState()
     val eegValidationStatus by viewModel.eegValidationStatus.collectAsState()
     val eegValidationMessage by viewModel.eegValidationMessage.collectAsState()
+    val eegManualFinding by viewModel.eegManualFinding.collectAsState()
 
     val isGenerating by viewModel.isGenerating.collectAsState()
     val advancedExpanded by viewModel.advancedPresetsExpanded.collectAsState()
@@ -228,12 +234,46 @@ fun NewDiagnosticAssessmentScreen(
                 elevation = CardDefaults.cardElevation(0.dp)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "Patient Clinical Data",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MedicalTextPrimary
-                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Patient Clinical Data",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MedicalTextPrimary
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            OutlinedButton(
+                                onClick = { viewModel.setLowRiskBaselinePreset() },
+                                modifier = Modifier.height(28.dp).testTag("preset_low_risk"),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    containerColor = RiskGreenBg,
+                                    contentColor = RiskGreen
+                                ),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, RiskGreen.copy(alpha = 0.5f)),
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)
+                            ) {
+                                Icon(imageVector = Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(11.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("Low Risk", fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                            OutlinedButton(
+                                onClick = { viewModel.setHighRiskPreset() },
+                                modifier = Modifier.height(28.dp).testTag("preset_high_risk"),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    containerColor = RiskRedBg,
+                                    contentColor = RiskRed
+                                ),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, RiskRed.copy(alpha = 0.5f)),
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 8.dp)
+                            ) {
+                                Text("High Risk", fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    }
                     Spacer(modifier = Modifier.height(14.dp))
 
                     // Row 1: Age & BMI
@@ -245,13 +285,15 @@ fun NewDiagnosticAssessmentScreen(
                             label = "Age (Years)",
                             value = age,
                             onValueChange = { viewModel.age.value = it },
-                            modifier = Modifier.weight(1f).testTag("input_age")
+                            modifier = Modifier.weight(1f).testTag("input_age"),
+                            helperText = "Low Risk: < 50 yrs"
                         )
                         ClinicalInputField(
                             label = "BMI (kg/m²)",
                             value = bmi,
                             onValueChange = { viewModel.bmi.value = it },
-                            modifier = Modifier.weight(1f).testTag("input_bmi")
+                            modifier = Modifier.weight(1f).testTag("input_bmi"),
+                            helperText = "Normal: 18.5 – 24.9"
                         )
                     }
 
@@ -266,13 +308,15 @@ fun NewDiagnosticAssessmentScreen(
                             label = "Blood Pressure (mmHg)",
                             value = bp,
                             onValueChange = { viewModel.bloodPressure.value = it },
-                            modifier = Modifier.weight(1f).testTag("input_bp")
+                            modifier = Modifier.weight(1f).testTag("input_bp"),
+                            helperText = "Normal: < 120/80"
                         )
                         ClinicalInputField(
                             label = "Heart Rate (BPM)",
                             value = hr,
                             onValueChange = { viewModel.heartRate.value = it },
-                            modifier = Modifier.weight(1f).testTag("input_hr")
+                            modifier = Modifier.weight(1f).testTag("input_hr"),
+                            helperText = "Normal: 60 – 99 bpm"
                         )
                     }
 
@@ -287,13 +331,15 @@ fun NewDiagnosticAssessmentScreen(
                             label = "Total Cholesterol (mg/dL)",
                             value = chol,
                             onValueChange = { viewModel.cholesterol.value = it },
-                            modifier = Modifier.weight(1f).testTag("input_chol")
+                            modifier = Modifier.weight(1f).testTag("input_chol"),
+                            helperText = "Desirable: < 200 mg/dL"
                         )
                         ClinicalInputField(
                             label = "Fasting Glucose (mg/dL)",
                             value = glucose,
                             onValueChange = { viewModel.fastingGlucose.value = it },
-                            modifier = Modifier.weight(1f).testTag("input_glucose")
+                            modifier = Modifier.weight(1f).testTag("input_glucose"),
+                            helperText = "Normal: 70 – 99 mg/dL"
                         )
                     }
 
@@ -308,13 +354,15 @@ fun NewDiagnosticAssessmentScreen(
                             label = "Troponin I (ng/mL)",
                             value = troponin,
                             onValueChange = { viewModel.troponin.value = it },
-                            modifier = Modifier.weight(1f).testTag("input_troponin")
+                            modifier = Modifier.weight(1f).testTag("input_troponin"),
+                            helperText = "Normal: < 0.04 ng/mL"
                         )
                         ClinicalInputField(
                             label = "NIH Stroke Scale (0-42)",
                             value = nihss,
                             onValueChange = { viewModel.nihss.value = it },
-                            modifier = Modifier.weight(1f).testTag("input_nihss")
+                            modifier = Modifier.weight(1f).testTag("input_nihss"),
+                            helperText = "Normal: 0 (No deficit)"
                         )
                     }
 
@@ -423,6 +471,8 @@ fun NewDiagnosticAssessmentScreen(
                 buttonText = "Upload ECG Image or Report",
                 buttonTag = "upload_ecg_button",
                 footerNote = "Accepts ECG image tracings and reports. Automatically evaluates rhythm, ST elevation, and arrhythmia patterns.",
+                manualFinding = ecgManualFinding,
+                onFindingChange = { viewModel.setEcgManualFinding(it) },
                 onUploadClick = {
                     ecgLauncher.launch("image/*")
                 },
@@ -459,6 +509,8 @@ fun NewDiagnosticAssessmentScreen(
                 buttonText = "Upload EEG Image or Report",
                 buttonTag = "upload_eeg_button",
                 footerNote = "Accepts EEG image tracings and reports. Automatically evaluates background activity, slowing, and epileptiform spikes.",
+                manualFinding = eegManualFinding,
+                onFindingChange = { viewModel.setEegManualFinding(it) },
                 onUploadClick = {
                     eegLauncher.launch("image/*")
                 },
@@ -485,6 +537,8 @@ fun NewDiagnosticAssessmentScreen(
                 buttonText = "Upload MRI / CT Image or Report",
                 buttonTag = "upload_mri_button",
                 footerNote = "Accepts 2D Brain MRI slices (DWI, T1, T2) or brain CT. Color photos and unrelated screenshots are strictly rejected.",
+                manualFinding = mriManualFinding,
+                onFindingChange = { viewModel.setMriManualFinding(it) },
                 onUploadClick = {
                     mriLauncher.launch("image/*")
                 },
@@ -745,32 +799,44 @@ fun ClinicalInputField(
     label: String,
     value: String,
     onValueChange: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    helperText: String? = null
 ) {
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        label = { Text(label, fontSize = 11.sp) },
-        singleLine = true,
-        shape = RoundedCornerShape(12.dp),
-        colors = OutlinedTextFieldDefaults.colors(
-            focusedContainerColor = MedicalSurface,
-            unfocusedContainerColor = MedicalSurface,
-            focusedBorderColor = MedicalBlue,
-            unfocusedBorderColor = MedicalCardBorder,
-            focusedLabelColor = MedicalBlue,
-            unfocusedLabelColor = MedicalTextSecondary,
-            focusedTextColor = MedicalTextPrimary,
-            unfocusedTextColor = MedicalTextPrimary,
-            cursorColor = MedicalBlue
-        ),
-        textStyle = androidx.compose.ui.text.TextStyle(
-            fontSize = 14.sp,
-            fontWeight = FontWeight.Bold,
-            color = MedicalTextPrimary
-        ),
-        modifier = modifier
-    )
+    Column(modifier = modifier) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            label = { Text(label, fontSize = 11.sp) },
+            singleLine = true,
+            shape = RoundedCornerShape(12.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = MedicalSurface,
+                unfocusedContainerColor = MedicalSurface,
+                focusedBorderColor = MedicalBlue,
+                unfocusedBorderColor = MedicalCardBorder,
+                focusedLabelColor = MedicalBlue,
+                unfocusedLabelColor = MedicalTextSecondary,
+                focusedTextColor = MedicalTextPrimary,
+                unfocusedTextColor = MedicalTextPrimary,
+                cursorColor = MedicalBlue
+            ),
+            textStyle = androidx.compose.ui.text.TextStyle(
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = MedicalTextPrimary
+            ),
+            modifier = Modifier.fillMaxWidth()
+        )
+        if (helperText != null) {
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = helperText,
+                fontSize = 10.sp,
+                color = MedicalTextSecondary,
+                modifier = Modifier.padding(start = 4.dp)
+            )
+        }
+    }
 }
 
 @Composable
@@ -789,19 +855,18 @@ fun ModalityUploadCard(
     buttonText: String,
     buttonTag: String,
     footerNote: String,
+    manualFinding: Boolean? = null,
+    onFindingChange: ((Boolean?) -> Unit)? = null,
     onUploadClick: () -> Unit,
     onClearClick: () -> Unit,
     extraContent: @Composable (() -> Unit)? = null
 ) {
-    // Map status to badge label & color
-    val (statusLabel, statusTextColor, statusBgColor) = when (validationStatus) {
-        ModalityValidationStatus.REAL_ENTERED -> Triple(if (sourceType.startsWith("PRESET")) "PRESET REPORT" else "REPORT ANALYZED", RiskGreen, RiskGreenBg)
-        ModalityValidationStatus.VALIDATED_MRI -> Triple("VALIDATED MRI", RiskGreen, RiskGreenBg)
-        ModalityValidationStatus.USER_DECLARED_NOT_VALIDATED -> Triple(if (sourceType.startsWith("PRESET")) "PRESET" else "USER DECLARED", MedicalTeal, MedicalBadgeBg)
-        ModalityValidationStatus.UNSUPPORTED -> Triple("UNSUPPORTED — RAW REQUIRED", RiskOrange, RiskOrangeBg)
-        ModalityValidationStatus.MODALITY_REJECTED -> Triple("INVALID IMAGE", RiskRed, RiskRedBg)
-        ModalityValidationStatus.RAW_SIGNAL_VALIDATED -> Triple("RAW SIGNAL VALIDATED", RiskGreen, RiskGreenBg)
-        ModalityValidationStatus.MODALITY_UNVALIDATED -> Triple("UNVALIDATED", RiskOrange, RiskOrangeBg)
+    // Map status to badge label & color (Neutral until prediction is generated)
+    val (statusLabel, statusTextColor, statusBgColor) = when {
+        validationStatus == ModalityValidationStatus.MODALITY_REJECTED -> Triple("INVALID IMAGE", RiskRed, RiskRedBg)
+        validationStatus == ModalityValidationStatus.UNSUPPORTED -> Triple("UNSUPPORTED", RiskOrange, RiskOrangeBg)
+        sourceType.startsWith("PRESET") -> Triple("PRESET LOADED", MedicalTeal, MedicalBadgeBg)
+        bitmap != null || (fileName != null && sourceType != "NONE") -> Triple("FILE ATTACHED", MedicalTeal, MedicalBadgeBg)
         else -> Triple("NOT PROVIDED", MedicalTextMuted, MedicalSubtleBg)
     }
 

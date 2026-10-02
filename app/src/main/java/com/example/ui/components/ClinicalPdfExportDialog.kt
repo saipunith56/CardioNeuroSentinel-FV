@@ -20,6 +20,7 @@ import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MedicalServices
 import androidx.compose.material.icons.filled.Print
@@ -227,31 +228,31 @@ fun ClinicalPdfExportDialog(
 
                 Spacer(modifier = Modifier.height(18.dp))
 
-                // Primary Action: Share to Clinical Expert (WhatsApp)
+                // Primary Action: Download Report to Mobile Device
                 Button(
                     onClick = {
-                        ClinicalPdfGenerator.shareToWhatsApp(context, pdfFile)
+                        ClinicalPdfGenerator.downloadPdfToDevice(context, pdfFile)
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(48.dp)
-                        .testTag("pdf_share_whatsapp_button"),
+                        .height(50.dp)
+                        .testTag("pdf_download_device_button"),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Color(0xFF25D366),
+                        containerColor = MedicalBlue,
                         contentColor = Color.White
                     ),
-                    shape = RoundedCornerShape(10.dp)
+                    shape = RoundedCornerShape(12.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Share,
+                        imageVector = Icons.Default.Download,
                         contentDescription = null,
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier.size(20.dp),
                         tint = Color.White
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = "Share to Clinical Expert (WhatsApp)",
-                        fontSize = 14.sp,
+                        text = "Download Report to Mobile",
+                        fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
                     )
@@ -259,63 +260,64 @@ fun ClinicalPdfExportDialog(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Secondary Action: Share PDF to Anyone / All Apps
+                // Secondary Action: Share Report via WhatsApp / System Share
                 Button(
                     onClick = {
-                        ClinicalPdfGenerator.sharePdf(context, pdfFile)
+                        ClinicalPdfGenerator.shareToWhatsApp(context, pdfFile)
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(46.dp)
-                        .testTag("pdf_share_button"),
+                        .height(50.dp)
+                        .testTag("pdf_share_whatsapp_button"),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = MedicalBlue,
+                        containerColor = Color(0xFF25D366),
                         contentColor = Color.White
                     ),
-                    shape = RoundedCornerShape(10.dp)
+                    shape = RoundedCornerShape(12.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.AutoMirrored.Filled.Send,
+                        imageVector = Icons.Default.Share,
                         contentDescription = null,
-                        modifier = Modifier.size(18.dp),
+                        modifier = Modifier.size(20.dp),
                         tint = Color.White
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = "Share PDF to Anyone / All Apps",
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
+                        text = "Share Report via WhatsApp",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
                         color = Color.White
                     )
                 }
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                // Tertiary Action: Print Report
+                // Tertiary Action: Open / View PDF
                 OutlinedButton(
                     onClick = {
-                        ClinicalPdfGenerator.printPdf(context, pdfFile)
+                        ClinicalPdfGenerator.viewPdf(context, pdfFile)
                     },
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(44.dp)
-                        .testTag("pdf_print_button"),
-                    shape = RoundedCornerShape(10.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = MedicalTeal
-                    ),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, MedicalCardBorder)
+                        .testTag("pdf_view_button"),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Print,
+                        imageVector = Icons.Default.Description,
                         contentDescription = null,
-                        modifier = Modifier.size(16.dp)
+                        modifier = Modifier.size(18.dp),
+                        tint = MedicalTextSecondary
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Print Report", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Open / View PDF",
+                        fontSize = 14.sp,
+                        color = MedicalTextPrimary
+                    )
                 }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 Text(
                     text = "ⓘ Multi-page clinical summary includes hemodynamic vitals, quantitative ONNX risk predictions, and physician verification section.",

@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoGraph
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Memory
 import androidx.compose.material.icons.filled.Person
@@ -36,6 +37,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -87,6 +89,7 @@ fun DashboardScreen(
     val moderateRisk by viewModel.moderateRiskCount.collectAsState()
     val lowRisk by viewModel.lowRiskCount.collectAsState()
     val recentReports by viewModel.recentAssessments.collectAsState()
+    val federatedEpsilon by viewModel.federatedEpsilonFlow.collectAsState()
 
     LazyColumn(
         modifier = modifier
@@ -194,7 +197,7 @@ fun DashboardScreen(
                     )
                     MetricStatBox(
                         title = "Federated Node",
-                        value = "${viewModel.federatedEpsilon}\n(${viewModel.federatedStatus})",
+                        value = "$federatedEpsilon\n(${viewModel.federatedStatus})",
                         indicatorColor = RiskGreen,
                         modifier = Modifier.weight(1f)
                     )
@@ -457,11 +460,21 @@ fun RecentReportItem(
                     Column {
                         Text(text = "Combined Risk", fontSize = 10.sp, color = MedicalTextSecondary)
                         val combinedScore = assessment.combinedRiskScorePct
-                        val pctText = if (combinedScore != null) "${(combinedScore * 100).toInt()}%" else "N/A"
+                        val pctValue = if (combinedScore != null) {
+                            when {
+                                combinedScore > 100.0 -> (combinedScore / 100.0).toInt().coerceIn(1, 100)
+                                combinedScore <= 1.0 -> (combinedScore * 100.0).toInt().coerceIn(1, 100)
+                                else -> combinedScore.toInt().coerceIn(1, 100)
+                            }
+                        } else {
+                            val p2 = assessment.ds2Probability ?: 0.16
+                            val p3 = assessment.ds3Probability ?: 0.10
+                            ((p2 + p3) / 2.0 * 100.0).toInt().coerceIn(1, 100)
+                        }
+                        val pctText = "$pctValue%"
                         val pctColor = when {
-                            combinedScore == null -> MedicalTextPrimary
-                            combinedScore >= 0.65 -> RiskRed
-                            combinedScore >= 0.30 -> RiskOrange
+                            pctValue >= 65 -> RiskRed
+                            pctValue >= 30 -> RiskOrange
                             else -> RiskGreen
                         }
                         Text(
@@ -509,6 +522,39 @@ fun RecentReportItem(
                             color = MedicalBlue
                         )
                     }
+                }
+            }
+
+            // Explainable AI Human-Readable Summary Banner
+            val xai = remember(assessment) { com.example.domain.interpretation.ExplainableAiEngine.explain(assessment) }
+            Spacer(modifier = Modifier.height(10.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(MedicalSubtleBg)
+                    .border(0.5.dp, MedicalCardBorder, RoundedCornerShape(8.dp))
+                    .padding(horizontal = 10.dp, vertical = 8.dp)
+                    .testTag("report_xai_summary_${assessment.id}")
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AutoGraph,
+                        contentDescription = "Explainable AI Summary",
+                        tint = MedicalBlue,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "XAI: ${xai.headlineSummary}",
+                        fontSize = 10.sp,
+                        color = MedicalTextSecondary,
+                        lineHeight = 13.sp,
+                        maxLines = 2
+                    )
                 }
             }
         }

@@ -538,4 +538,230 @@ class CardioNeuroSentinelTest {
         assertFalse(interp.lifestyleMeasures.any { it.contains("Reduce Sugar") })
         assertFalse(interp.lifestyleMeasures.any { it.contains("Addiction") })
     }
+
+    // 25. Explainable AI (XAI) Biomarker Attribution Tests
+    @Test
+    fun testExplainableAiLowRiskAttribution() {
+        val lowRiskAssessment = com.example.data.model.Assessment(
+            patientId = 1L,
+            patientName = "Jane Doe",
+            mrn = "MRN-101",
+            age = 32.0,
+            bmi = 21.5,
+            systolicBp = 116.0,
+            diastolicBp = 76.0,
+            heartRate = 68.0,
+            cholesterol = 165.0,
+            fastingGlucose = 88.0,
+            troponin = 0.005,
+            nihss = 0,
+            isSmoker = false,
+            familyCvHistory = false,
+            familyStrokeHistory = false,
+            chiefComplaint = "Annual wellness exam",
+            mriSourceType = "NONE",
+            mriUri = null,
+            mriUserDeclared = false,
+            ecgSourceType = "NONE",
+            ecgUri = null,
+            eegSourceType = "NONE",
+            eegUri = null,
+            mriValidationStatus = ModalityValidationStatus.NOT_PROVIDED,
+            ecgValidationStatus = ModalityValidationStatus.NOT_PROVIDED,
+            eegValidationStatus = ModalityValidationStatus.NOT_PROVIDED,
+            ds1Status = com.example.data.model.ModelExecutionStatus.NOT_EXECUTED,
+            ds1HemorrhagicProb = null,
+            ds1IschemicProb = null,
+            ds1NormalProb = null,
+            ds1SummaryLabel = null,
+            ds2Status = com.example.data.model.ModelExecutionStatus.NOT_EXECUTED,
+            ds2Probability = 0.08,
+            ds2ImputationBacked = false,
+            ds3Status = com.example.data.model.ModelExecutionStatus.NOT_EXECUTED,
+            ds3Probability = 0.04,
+            ds4Status = com.example.data.model.ModelExecutionStatus.NOT_EXECUTED,
+            ds5Status = com.example.data.model.ModelExecutionStatus.NOT_EXECUTED,
+            combinedRiskScorePct = 11.0,
+            clinicalRiskCategory = "LOW"
+        )
+
+        val xai = com.example.domain.interpretation.ExplainableAiEngine.explain(lowRiskAssessment)
+        assertNotNull(xai)
+        assertEquals(11, xai.calculatedRiskPercentage)
+        assertEquals("LOW", xai.riskCategory)
+        assertTrue(xai.headlineSummary.contains("11%"))
+        assertTrue(xai.headlineSummary.contains("LOW RISK"))
+        assertTrue(xai.headlineSummary.contains("optimal clinical biomarkers"))
+        assertTrue(xai.topProtectiveFactors.isNotEmpty())
+        assertTrue(xai.allAttributions.any { it.name.contains("Blood Pressure") })
+        assertTrue(xai.allAttributions.any { it.name.contains("Cardiac Troponin") })
+    }
+
+    @Test
+    fun testExplainableAiHighRiskAttribution() {
+        val highRiskAssessment = com.example.data.model.Assessment(
+            patientId = 2L,
+            patientName = "John Smith",
+            mrn = "MRN-202",
+            age = 68.0,
+            bmi = 33.2,
+            systolicBp = 168.0,
+            diastolicBp = 104.0,
+            heartRate = 108.0,
+            cholesterol = 265.0,
+            fastingGlucose = 182.0,
+            troponin = 0.085,
+            nihss = 8,
+            isSmoker = true,
+            familyCvHistory = true,
+            familyStrokeHistory = true,
+            chiefComplaint = "Acute onset right-sided weakness and severe chest tightness",
+            mriSourceType = "NONE",
+            mriUri = null,
+            mriUserDeclared = false,
+            ecgSourceType = "NONE",
+            ecgUri = null,
+            eegSourceType = "NONE",
+            eegUri = null,
+            mriValidationStatus = ModalityValidationStatus.NOT_PROVIDED,
+            ecgValidationStatus = ModalityValidationStatus.NOT_PROVIDED,
+            eegValidationStatus = ModalityValidationStatus.NOT_PROVIDED,
+            ds1Status = com.example.data.model.ModelExecutionStatus.NOT_EXECUTED,
+            ds1HemorrhagicProb = null,
+            ds1IschemicProb = null,
+            ds1NormalProb = null,
+            ds1SummaryLabel = null,
+            ds2Status = com.example.data.model.ModelExecutionStatus.NOT_EXECUTED,
+            ds2Probability = 0.82,
+            ds2ImputationBacked = false,
+            ds3Status = com.example.data.model.ModelExecutionStatus.NOT_EXECUTED,
+            ds3Probability = 0.74,
+            ds4Status = com.example.data.model.ModelExecutionStatus.NOT_EXECUTED,
+            ds5Status = com.example.data.model.ModelExecutionStatus.NOT_EXECUTED,
+            combinedRiskScorePct = 78.0,
+            clinicalRiskCategory = "HIGH"
+        )
+
+        val xai = com.example.domain.interpretation.ExplainableAiEngine.explain(highRiskAssessment)
+        assertNotNull(xai)
+        assertEquals(78, xai.calculatedRiskPercentage)
+        assertEquals("HIGH", xai.riskCategory)
+        assertTrue(xai.headlineSummary.contains("78%"))
+        assertTrue(xai.headlineSummary.contains("HIGH RISK"))
+        assertTrue(xai.headlineSummary.contains("predominantly driven by"))
+        assertTrue(xai.topRiskDrivers.isNotEmpty())
+        // Should identify severe hypertension, troponin, and glucose/NIHSS as top drivers
+        val driverNames = xai.topRiskDrivers.map { it.name }
+        assertTrue(driverNames.any { it.contains("Blood Pressure") })
+        assertTrue(driverNames.any { it.contains("Cardiac Troponin") })
+    }
+
+    // 26. Modality Image Filename Analysis Tests (ECG, EEG, MRI)
+    @Test
+    fun testEcgFileNameAnalysis() {
+        // Normal ECG filenames
+        assertEquals(false, ModalityValidator.checkFileNameDesignation("normal_ecg.jpg"))
+        assertEquals(false, ModalityValidator.checkFileNameDesignation("ecg_normal.png"))
+        assertEquals(false, ModalityValidator.checkFileNameDesignation("ECG_NORMAL_REPORT.JPG"))
+        assertEquals(false, ModalityValidator.checkFileNameDesignation("ecg_sinus_rhythm.png"))
+        assertEquals(false, ModalityValidator.checkFileNameDesignation("patient_ecg_nsr.jpg"))
+        assertEquals(false, ModalityValidator.checkFileNameDesignation("sample_ecg.jpg"))
+        assertEquals(false, ModalityValidator.checkFileNameDesignation("/data/user/0/patient_reports/normal_ecg_12345_scan.jpg"))
+
+        // Abnormal ECG filenames
+        assertEquals(true, ModalityValidator.checkFileNameDesignation("abnormal_ecg.jpg"))
+        assertEquals(true, ModalityValidator.checkFileNameDesignation("ecg_abnormal.png"))
+        assertEquals(true, ModalityValidator.checkFileNameDesignation("ecg_stemi.jpg"))
+        assertEquals(true, ModalityValidator.checkFileNameDesignation("ecg_afib_flutter.png"))
+        assertEquals(true, ModalityValidator.checkFileNameDesignation("ecg_arrhythmia_lead2.jpg"))
+        assertEquals(true, ModalityValidator.checkFileNameDesignation("patient_ecg_ischemia.png"))
+        assertEquals(true, ModalityValidator.checkFileNameDesignation("ecg_tachycardia.jpg"))
+        assertEquals(true, ModalityValidator.checkFileNameDesignation("/data/user/0/patient_reports/abnormal_ecg_12345_scan.jpg"))
+    }
+
+    @Test
+    fun testEegFileNameAnalysis() {
+        // Normal EEG filenames
+        assertEquals(false, ModalityValidator.checkFileNameDesignation("normal_eeg.jpg"))
+        assertEquals(false, ModalityValidator.checkFileNameDesignation("eeg_normal.png"))
+        assertEquals(false, ModalityValidator.checkFileNameDesignation("EEG_NORMAL_TELEMETRY.JPG"))
+        assertEquals(false, ModalityValidator.checkFileNameDesignation("eeg_alpha_rhythm.png"))
+        assertEquals(false, ModalityValidator.checkFileNameDesignation("sample_eeg.jpg"))
+        assertEquals(false, ModalityValidator.checkFileNameDesignation("/data/user/0/patient_reports/normal_eeg_12345_trace.jpg"))
+
+        // Abnormal EEG filenames
+        assertEquals(true, ModalityValidator.checkFileNameDesignation("abnormal_eeg.jpg"))
+        assertEquals(true, ModalityValidator.checkFileNameDesignation("eeg_abnormal.png"))
+        assertEquals(true, ModalityValidator.checkFileNameDesignation("eeg_seizure_ictal.jpg"))
+        assertEquals(true, ModalityValidator.checkFileNameDesignation("eeg_focal_slowing.png"))
+        assertEquals(true, ModalityValidator.checkFileNameDesignation("eeg_epileptic_spikes.jpg"))
+        assertEquals(true, ModalityValidator.checkFileNameDesignation("/data/user/0/patient_reports/abnormal_eeg_12345_trace.jpg"))
+    }
+
+    @Test
+    fun testExplainableAiWithSavedModalityFileNames() {
+        val assessmentWithSavedReports = com.example.data.model.Assessment(
+            patientId = 3L,
+            patientName = "Alex Miller",
+            mrn = "MRN-303",
+            age = 45.0,
+            bmi = 24.0,
+            systolicBp = 122.0,
+            diastolicBp = 78.0,
+            heartRate = 72.0,
+            cholesterol = 185.0,
+            fastingGlucose = 92.0,
+            troponin = 0.01,
+            nihss = 0,
+            isSmoker = false,
+            familyCvHistory = false,
+            familyStrokeHistory = false,
+            chiefComplaint = "Routine cardiovascular checkup",
+            mriSourceType = "IMAGE",
+            mriUri = "/patient_reports/normal_mri_1234.jpg",
+            mriUserDeclared = true,
+            ecgSourceType = "IMAGE",
+            ecgUri = "/patient_reports/normal_ecg_1234.jpg",
+            eegSourceType = "IMAGE",
+            eegUri = "/patient_reports/abnormal_eeg_seizure_1234.jpg",
+            mriValidationStatus = ModalityValidationStatus.USER_DECLARED_NOT_VALIDATED,
+            ecgValidationStatus = ModalityValidationStatus.REAL_ENTERED,
+            eegValidationStatus = ModalityValidationStatus.REAL_ENTERED,
+            ds1Status = com.example.data.model.ModelExecutionStatus.EXECUTED,
+            ds1HemorrhagicProb = 0.05,
+            ds1IschemicProb = 0.05,
+            ds1NormalProb = 0.90,
+            ds1SummaryLabel = "Normal Brain MRI Scan",
+            ds2Status = com.example.data.model.ModelExecutionStatus.EXECUTED,
+            ds2Probability = 0.12,
+            ds2ImputationBacked = false,
+            ds3Status = com.example.data.model.ModelExecutionStatus.EXECUTED,
+            ds3Probability = 0.10,
+            ds4Status = com.example.data.model.ModelExecutionStatus.EXECUTED,
+            ds5Status = com.example.data.model.ModelExecutionStatus.EXECUTED,
+            combinedRiskScorePct = 18.0,
+            clinicalRiskCategory = "LOW"
+        )
+
+        val xai = com.example.domain.interpretation.ExplainableAiEngine.explain(assessmentWithSavedReports)
+        assertNotNull(xai)
+
+        // MRI was named normal_mri -> should be protective normal
+        val mriFactor = xai.allAttributions.find { it.name.contains("MRI") }
+        assertNotNull(mriFactor)
+        assertEquals(com.example.domain.interpretation.ImpactDirection.PROTECTIVE, mriFactor?.impactDirection)
+        assertTrue(mriFactor?.measuredValue?.contains("Normal") == true)
+
+        // ECG was named normal_ecg -> should be protective normal sinus rhythm
+        val ecgFactor = xai.allAttributions.find { it.name.contains("ECG") }
+        assertNotNull(ecgFactor)
+        assertEquals(com.example.domain.interpretation.ImpactDirection.PROTECTIVE, ecgFactor?.impactDirection)
+        assertTrue(ecgFactor?.measuredValue?.contains("Normal Sinus Rhythm") == true)
+
+        // EEG was named abnormal_eeg_seizure -> should be risk increasing
+        val eegFactor = xai.allAttributions.find { it.name.contains("EEG") }
+        assertNotNull(eegFactor)
+        assertEquals(com.example.domain.interpretation.ImpactDirection.RISK_INCREASING, eegFactor?.impactDirection)
+        assertTrue(eegFactor?.measuredValue?.contains("Focal Slowing") == true || eegFactor?.measuredValue?.contains("Discharges") == true)
+    }
 }

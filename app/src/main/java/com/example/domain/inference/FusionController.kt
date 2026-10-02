@@ -9,10 +9,16 @@ object FusionController {
      * Calculates unified multimodal risk percentage (0.0 - 100.0)
      * based on cardiovascular risk, cerebrovascular risk, and diagnostic evidence (MRI, ECG, EEG).
      *
+     * Image Modality Risk Rules:
+     * - Normal MRI/ECG/EEG: 0.0% risk change (no increase)
+     * - Abnormal MRI: Controlled +2.5% to +3.5% risk increase (acute stroke/ischemia finding)
+     * - Abnormal ECG: Controlled +2.5% to +3.5% risk increase (arrhythmia/ischemia finding)
+     * - Abnormal EEG: Controlled +2.0% to +3.0% risk increase (focal slowing/discharges)
+     *
      * Clinical Counting Rule:
-     * - If normal (<= 1 abnormal) -> Low risk (12% - 24%)
-     * - If 2 data more than normal -> Moderate risk (38% - 55%)
-     * - If > half or all data more than normal -> High risk (68% - 92%)
+     * - If normal or <= 1 abnormal -> Low risk (10% - 24%)
+     * - If 2 data more than normal (or up to half) -> Moderate risk (25% - 58%)
+     * - If > half of data more than normal -> High risk (62% - 92%)
      */
     fun calculateMultimodalRisk(
         cvRiskPct: Double,
@@ -25,17 +31,19 @@ object FusionController {
     ): Double {
         val baseScore = (0.50 * cvRiskPct) + (0.50 * strokeRiskPct)
         var modifier = 0.0
-        if (mriAbnormal) modifier += 10.0
-        if (ecgAbnormal) modifier += 6.0
-        if (eegAbnormal) modifier += 5.0
+        // Normal images contribute 0.0% (no risk change)
+        // Abnormal images contribute controlled 2% - 4% risk increase as requested
+        if (mriAbnormal) modifier += 3.0
+        if (ecgAbnormal) modifier += 3.0
+        if (eegAbnormal) modifier += 2.5
 
         val rawCombined = (baseScore + modifier).coerceIn(8.0, 95.0)
 
         return when {
-            abnormalCount <= 1 -> rawCombined.coerceIn(12.0, 24.0)
-            abnormalCount in 2..(totalEvaluated / 2) -> rawCombined.coerceIn(38.0, 55.0)
-            abnormalCount > (totalEvaluated / 2) -> rawCombined.coerceIn(68.0, 92.0)
-            else -> rawCombined.coerceIn(35.0, 65.0)
+            abnormalCount <= 1 -> rawCombined.coerceIn(10.0, 24.0)
+            abnormalCount in 2..(totalEvaluated / 2) -> rawCombined.coerceIn(25.0, 58.0)
+            abnormalCount > (totalEvaluated / 2) -> rawCombined.coerceIn(62.0, 92.0)
+            else -> rawCombined.coerceIn(25.0, 65.0)
         }
     }
 

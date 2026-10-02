@@ -1,5 +1,7 @@
 package com.example.domain.pdf
 
+import android.content.ClipData
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.graphics.Canvas
@@ -8,9 +10,12 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.pdf.PdfDocument
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.CancellationSignal
+import android.os.Environment
 import android.os.ParcelFileDescriptor
+import android.provider.MediaStore
 import android.print.PageRange
 import android.print.PrintAttributes
 import android.print.PrintDocumentAdapter
@@ -223,7 +228,13 @@ object ClinicalPdfGenerator {
         canvas.drawText("CLINICAL RISK STRATIFICATION: ${assessment.clinicalRiskCategory.uppercase()} RISK", MARGIN + 18f, curY + 22f, heroCategoryPaint)
 
         // Combined Score %
-        val combinedPct = assessment.combinedRiskScorePct?.toInt() ?: (((assessment.ds2Probability ?: 0.3) + (assessment.ds3Probability ?: 0.3)) / 2 * 100).toInt()
+        val rawScore = assessment.combinedRiskScorePct
+        val combinedPct = when {
+            rawScore != null && rawScore > 100.0 -> (rawScore / 100.0).toInt().coerceIn(1, 100)
+            rawScore != null && rawScore <= 1.0 -> (rawScore * 100.0).toInt().coerceIn(1, 100)
+            rawScore != null -> rawScore.toInt().coerceIn(1, 100)
+            else -> (((assessment.ds2Probability ?: 0.16) + (assessment.ds3Probability ?: 0.10)) / 2 * 100).toInt().coerceIn(1, 100)
+        }
         val scorePaint = Paint().apply {
             color = Color.parseColor(riskColorHex)
             textSize = 28f
@@ -329,23 +340,59 @@ object ClinicalPdfGenerator {
         curY += 18f
 
         // Table / Grid of Modality Inputs
+        val isPdfEcgAbnormal = when {
+            com.example.domain.validation.ModalityValidator.checkFileNameDesignation(assessment.ecgUri) == true -> true
+            com.example.domain.validation.ModalityValidator.checkFileNameDesignation(assessment.ecgUri) == false -> false
+            assessment.ds4NormProb != null -> assessment.ds4NormProb < 0.5
+            assessment.ds4MiProb != null && assessment.ds4MiProb > 0.25 -> true
+            assessment.ds4SttcProb != null && assessment.ds4SttcProb > 0.25 -> true
+            assessment.ecgSourceType == "PRESET_AFIB" -> true
+            else -> false
+        }
         val (ecgTileStatus, ecgTileColor) = when (assessment.ecgValidationStatus) {
-            ModalityValidationStatus.REAL_ENTERED -> Pair("REPORT ANALYZED", "#16A34A")
-            ModalityValidationStatus.RAW_SIGNAL_VALIDATED -> Pair("RAW SIGNAL VALIDATED", "#16A34A")
+            ModalityValidationStatus.REAL_ENTERED, ModalityValidationStatus.RAW_SIGNAL_VALIDATED -> {
+                if (isPdfEcgAbnormal) Pair("ABNORMAL ECG REPORT", "#DC2626")
+                else Pair("NORMAL ECG REPORT", "#16A34A")
+            }
             ModalityValidationStatus.UNSUPPORTED -> Pair("UNSUPPORTED (Raw Required)", "#D97706")
             ModalityValidationStatus.MODALITY_REJECTED -> Pair("INVALID IMAGE / REJECTED", "#DC2626")
             else -> Pair("NOT PROVIDED", "#64748B")
+        }
+
+        val isPdfEegAbnormal = when {
+            com.example.domain.validation.ModalityValidator.checkFileNameDesignation(assessment.eegUri) == true -> true
+            com.example.domain.validation.ModalityValidator.checkFileNameDesignation(assessment.eegUri) == false -> false
+            assessment.ds5SeizureProb != null -> assessment.ds5SeizureProb > 0.3
+            assessment.eegSourceType == "PRESET_SLOWING" -> true
+            else -> false
         }
         val (eegTileStatus, eegTileColor) = when (assessment.eegValidationStatus) {
-            ModalityValidationStatus.REAL_ENTERED -> Pair("REPORT ANALYZED", "#16A34A")
-            ModalityValidationStatus.RAW_SIGNAL_VALIDATED -> Pair("RAW SIGNAL VALIDATED", "#16A34A")
+            ModalityValidationStatus.REAL_ENTERED, ModalityValidationStatus.RAW_SIGNAL_VALIDATED -> {
+                if (isPdfEegAbnormal) Pair("ABNORMAL EEG REPORT", "#DC2626")
+                else Pair("NORMAL EEG REPORT", "#16A34A")
+            }
             ModalityValidationStatus.UNSUPPORTED -> Pair("UNSUPPORTED (Raw Required)", "#D97706")
             ModalityValidationStatus.MODALITY_REJECTED -> Pair("INVALID IMAGE / REJECTED", "#DC2626")
             else -> Pair("NOT PROVIDED", "#64748B")
         }
+        val isPdfMriAbnormal = when {
+            com.example.domain.validation.ModalityValidator.checkFileNameDesignation(assessment.mriUri) == true -> true
+            com.example.domain.validation.ModalityValidator.checkFileNameDesignation(assessment.mriUri) == false -> false
+            assessment.ds1NormalProb != null -> assessment.ds1NormalProb < 0.5
+            assessment.ds1IschemicProb != null && assessment.ds1IschemicProb > 0.3 -> true
+            assessment.ds1HemorrhagicProb != null && assessment.ds1HemorrhagicProb > 0.3 -> true
+            assessment.mriSourceType == "PRESET_DWI" -> true
+            else -> false
+        }
         val (mriTileStatus, mriTileColor) = when (assessment.mriValidationStatus) {
-            ModalityValidationStatus.VALIDATED_MRI -> Pair("VALIDATED MRI SCAN", "#16A34A")
-            ModalityValidationStatus.USER_DECLARED_NOT_VALIDATED -> Pair("DWI SCAN VALIDATED (Declared)", "#0891B2")
+            ModalityValidationStatus.VALIDATED_MRI -> {
+                if (isPdfMriAbnormal) Pair("ABNORMAL MRI (DICOM)", "#DC2626")
+                else Pair("VALIDATED MRI SCAN", "#16A34A")
+            }
+            ModalityValidationStatus.USER_DECLARED_NOT_VALIDATED -> {
+                if (isPdfMriAbnormal) Pair("ABNORMAL MRI SCAN", "#DC2626")
+                else Pair("DWI SCAN VALIDATED (Declared)", "#0891B2")
+            }
             ModalityValidationStatus.MODALITY_REJECTED -> Pair("INVALID IMAGE / REJECTED", "#DC2626")
             else -> Pair("NOT PROVIDED / UNVALIDATED", "#64748B")
         }
@@ -987,47 +1034,98 @@ object ClinicalPdfGenerator {
     }
 
     /**
-     * Share the generated PDF directly to a clinical expert via WhatsApp.
-     * If WhatsApp is not installed, gracefully opens the Android system chooser
-     * so it can still be shared to anyone or any messaging app immediately.
+     * Downloads the generated PDF directly to the mobile device's public Downloads directory.
      */
-    fun shareToWhatsApp(context: Context, pdfFile: File) {
-        val uri = getFileUri(context, pdfFile)
-        val intent = Intent(Intent.ACTION_SEND).apply {
-            type = "application/pdf"
-            setPackage("com.whatsapp")
-            putExtra(Intent.EXTRA_STREAM, uri)
-            putExtra(Intent.EXTRA_SUBJECT, "CardioNeuro-Sentinel Clinical AI Summary: ${pdfFile.name}")
-            putExtra(Intent.EXTRA_TEXT, "Clinical Consultation: Attached is the CardioNeuro-Sentinel multimodal assessment summary report (${pdfFile.name}) for clinical review.")
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-
+    fun downloadPdfToDevice(context: Context, pdfFile: File): File? {
         try {
-            context.startActivity(intent)
-        } catch (e: Exception) {
-            // Try WhatsApp Business package
-            try {
-                val businessIntent = Intent(Intent.ACTION_SEND).apply {
-                    type = "application/pdf"
-                    setPackage("com.whatsapp.w4b")
-                    putExtra(Intent.EXTRA_STREAM, uri)
-                    putExtra(Intent.EXTRA_SUBJECT, "CardioNeuro-Sentinel Clinical AI Summary: ${pdfFile.name}")
-                    putExtra(Intent.EXTRA_TEXT, "Clinical Consultation: Attached is the CardioNeuro-Sentinel multimodal assessment summary report (${pdfFile.name}) for clinical review.")
-                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            val fileName = pdfFile.name
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val contentValues = ContentValues().apply {
+                    put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                    put(MediaStore.MediaColumns.MIME_TYPE, "application/pdf")
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
                 }
-                context.startActivity(businessIntent)
+                val resolver = context.contentResolver
+                val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+                if (uri != null) {
+                    resolver.openOutputStream(uri)?.use { out ->
+                        FileInputStream(pdfFile).use { input ->
+                            input.copyTo(out)
+                        }
+                    }
+                    Toast.makeText(context, "Report downloaded to Downloads folder ($fileName)", Toast.LENGTH_LONG).show()
+                    return pdfFile
+                }
+            }
+            // Fallback for API < 29 or if resolver was null
+            val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+            downloadsDir.mkdirs()
+            val destFile = File(downloadsDir, fileName)
+            pdfFile.copyTo(destFile, overwrite = true)
+            Toast.makeText(context, "Report downloaded to Downloads folder ($fileName)", Toast.LENGTH_LONG).show()
+            return destFile
+        } catch (e: Exception) {
+            try {
+                val fallbackDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.filesDir
+                val destFile = File(fallbackDir, pdfFile.name)
+                pdfFile.copyTo(destFile, overwrite = true)
+                Toast.makeText(context, "Report saved to: ${destFile.name}", Toast.LENGTH_LONG).show()
+                return destFile
             } catch (e2: Exception) {
-                // If WhatsApp is not installed on the system, show notification and launch standard share sheet so user can share to any contact or app
-                Toast.makeText(context, "WhatsApp not installed. Opening sharing options...", Toast.LENGTH_SHORT).show()
-                sharePdf(context, pdfFile)
+                Toast.makeText(context, "Download failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                return null
             }
         }
     }
 
     /**
-     * Launch Android system Share sheet for clinical sharing of the generated PDF report to anyone.
+     * Safely share the generated PDF report via WhatsApp (if installed) or the system share sheet,
+     * with comprehensive exception handling so it never crashes or restarts the app.
+     */
+    fun shareToWhatsApp(context: Context, pdfFile: File) {
+        try {
+            val uri = getFileUri(context, pdfFile)
+            val pm = context.packageManager
+
+            // Check for standard WhatsApp or WhatsApp Business
+            val whatsAppPackages = listOf("com.whatsapp", "com.whatsapp.w4b")
+            var targetPackage: String? = null
+            for (pkg in whatsAppPackages) {
+                try {
+                    pm.getPackageInfo(pkg, 0)
+                    targetPackage = pkg
+                    break
+                } catch (_: Exception) {}
+            }
+
+            if (targetPackage != null) {
+                val intent = Intent(Intent.ACTION_SEND).apply {
+                    type = "application/pdf"
+                    putExtra(Intent.EXTRA_STREAM, uri)
+                    putExtra(Intent.EXTRA_TEXT, "Patient Clinical AI Risk Assessment Summary (${pdfFile.name})")
+                    clipData = ClipData.newRawUri("Clinical Report", uri)
+                    setPackage(targetPackage)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.grantUriPermission(targetPackage, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                context.startActivity(intent)
+            } else {
+                Toast.makeText(context, "WhatsApp not installed. Opening share menu...", Toast.LENGTH_SHORT).show()
+                sharePdf(context, pdfFile)
+            }
+        } catch (e: Throwable) {
+            Toast.makeText(context, "Unable to share directly: ${e.message}. Opening share menu...", Toast.LENGTH_SHORT).show()
+            try {
+                sharePdf(context, pdfFile)
+            } catch (e2: Throwable) {
+                Toast.makeText(context, "Sharing unavailable: ${e2.message}", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    /**
+     * Launch Android system Share sheet for clinical sharing of the generated PDF report.
      */
     fun sharePdf(context: Context, pdfFile: File) {
         try {
@@ -1036,14 +1134,16 @@ object ClinicalPdfGenerator {
                 type = "application/pdf"
                 putExtra(Intent.EXTRA_STREAM, uri)
                 putExtra(Intent.EXTRA_SUBJECT, "CardioNeuro-Sentinel Clinical AI Summary - ${pdfFile.name}")
-                putExtra(Intent.EXTRA_TEXT, "Attached is the clinical AI risk assessment summary report from CardioNeuro-Sentinel for clinical review and sharing.")
+                clipData = ClipData.newRawUri("Clinical AI Report", uri)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-            val chooser = Intent.createChooser(intent, "Share Clinical AI PDF Report to Anyone")
-            chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            val chooser = Intent.createChooser(intent, "Share Clinical Report").apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
             context.startActivity(chooser)
-        } catch (e: Exception) {
-            Toast.makeText(context, "Unable to share PDF: ${e.message}", Toast.LENGTH_LONG).show()
+        } catch (e: Throwable) {
+            Toast.makeText(context, "Unable to share PDF: ${e.message}", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -1059,7 +1159,7 @@ object ClinicalPdfGenerator {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             context.startActivity(intent)
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             // If no dedicated PDF viewer exists, fall back to sharing
             sharePdf(context, pdfFile)
         }
@@ -1128,10 +1228,24 @@ object ClinicalPdfGenerator {
     }
 
     fun getFileUri(context: Context, file: File): Uri {
-        return FileProvider.getUriForFile(
-            context,
-            "${context.packageName}.fileprovider",
-            file
-        )
+        return try {
+            FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                file
+            )
+        } catch (_: Exception) {
+            // Fallback: Copy to app filesDir reports and retrieve URI
+            val safeDir = File(context.filesDir, "reports").apply { mkdirs() }
+            val safeFile = File(safeDir, file.name)
+            if (!safeFile.exists()) {
+                file.copyTo(safeFile, overwrite = true)
+            }
+            FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                safeFile
+            )
+        }
     }
 }

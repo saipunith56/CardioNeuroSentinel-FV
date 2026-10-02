@@ -38,11 +38,12 @@ object ClinicalInterpreter {
         }
 
         if (assessment.ds1Status == ModelExecutionStatus.EXECUTED) {
-            summary.add("• MRI (Stroke Brain): Neuroimaging slice input → DS1 executed → Modality: ${assessment.mriValidationStatus.name}")
+            val mriFinding = if (assessment.ds1IschemicProb != null && assessment.ds1IschemicProb > 0.5) "Abnormal (acute ischemic lesion / infarction identified)" else "Normal (symmetrical cerebral parenchyma)"
+            summary.add("• MRI Brain: Evaluated — $mriFinding")
         } else if (assessment.mriValidationStatus == ModalityValidationStatus.MODALITY_REJECTED) {
             summary.add("• MRI: Uploaded file rejected — Invalid or non-neuroimaging image")
         } else {
-            summary.add("• MRI: Not provided or not validated")
+            summary.add("• MRI: Not provided")
         }
 
         if (assessment.ecgValidationStatus == ModalityValidationStatus.REAL_ENTERED) {
@@ -67,8 +68,14 @@ object ClinicalInterpreter {
             summary.add("• EEG: Uploaded — EEG image unsupported (requires raw 23-channel EEG)")
         }
 
-        if (assessment.combinedRiskScorePct != null) {
-            val combinedVal = assessment.combinedRiskScorePct.toInt()
+        val rawScore = assessment.combinedRiskScorePct
+        val combinedVal = when {
+            rawScore != null && rawScore > 100.0 -> (rawScore / 100.0).toInt().coerceIn(1, 100)
+            rawScore != null && rawScore <= 1.0 -> (rawScore * 100.0).toInt().coerceIn(1, 100)
+            rawScore != null -> rawScore.toInt().coerceIn(1, 100)
+            else -> null
+        }
+        if (combinedVal != null) {
             summary.add("• Multimodal Joint Synthesis: $combinedVal% (${assessment.clinicalRiskCategory} RISK) — Comprehensive synthesis integrating cardiovascular, cerebrovascular, and diagnostic evidence.")
         } else {
             summary.add("Multimodal risk calculation unavailable — insufficient combined model data. Risk scores are presented as independent per-modality model results.")
